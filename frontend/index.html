@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crop Disease Detection AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- Decorative background blobs -->
+  <div class="bg-blob blob-1"></div>
+  <div class="bg-blob blob-2"></div>
+  <div class="bg-blob blob-3"></div>
+
+  <div class="page-wrapper">
+
+    <!-- ── Header ───────────────────────────── -->
+    <header class="site-header">
+      <div class="header-icon">
+        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 4C20 4 8 12 8 22C8 28.627 13.373 34 20 34C26.627 34 32 28.627 32 22C32 12 20 4 20 4Z" fill="currentColor" opacity="0.9"/>
+          <path d="M20 34V20M20 20C20 20 14 15 12 10M20 20C20 20 26 15 28 10" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="site-title">Crop Disease Detection</h1>
+        <p class="site-subtitle">Powered by MobileNet · PlantVillage · 38 Classes</p>
+      </div>
+    </header>
+
+    <!-- ── Mode Selector ─────────────────────── -->
+    <div class="mode-selector">
+      <button class="mode-btn active" id="btn-upload" onclick="showUpload()">
+        <span class="mode-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="3"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+        </span>
+        <span class="mode-label">Upload Image</span>
+        <span class="mode-desc">Analyse a leaf photo</span>
+      </button>
+
+      <button class="mode-btn" id="btn-webcam" onclick="showWebcam()">
+        <span class="mode-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 7l-7 5 7 5V7z"/>
+            <rect x="1" y="5" width="15" height="14" rx="2"/>
+          </svg>
+        </span>
+        <span class="mode-label">Live Webcam</span>
+        <span class="mode-desc">Real-time detection</span>
+      </button>
+    </div>
+
+    <!-- ── Upload Section ────────────────────── -->
+    <div id="upload-section" class="card section-card">
+
+      <!-- Drop Zone -->
+      <div class="drop-zone" id="dropZone"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)"
+           onclick="document.getElementById('fileInput').click()">
+        <div class="drop-icon">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M24 8L24 32M24 8L16 16M24 8L32 16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 36H40" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="drop-primary">Drop a leaf image here</p>
+        <p class="drop-secondary">or click to browse · JPG, PNG, WebP</p>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
+      </div>
+
+      <!-- Preview -->
+      <div id="previewBox" class="preview-box" style="display:none;">
+        <img id="previewImage" alt="Leaf preview">
+        <button class="clear-btn" onclick="clearImage()" title="Remove image">✕</button>
+      </div>
+
+      <!-- Predict Button -->
+      <button class="predict-btn" id="predictBtn" onclick="predictImage()" style="display:none;">
+        <span id="predictBtnText">Analyse Leaf</span>
+        <span id="predictSpinner" class="spinner" style="display:none;"></span>
+      </button>
+    </div>
+
+    <!-- ── Webcam Section ─────────────────────── -->
+    <div id="webcam-section" class="card section-card" style="display:none;">
+      <div class="webcam-wrapper">
+        <img id="liveFeed" class="live-feed" alt="Live webcam feed">
+        <div class="webcam-badge">● LIVE</div>
+      </div>
+      <p class="webcam-hint">Point your camera at a crop leaf — detection updates in real time</p>
+      <button class="stop-btn" onclick="stopWebcam()">Stop Camera</button>
+    </div>
+
+    <!-- ── Result Card ────────────────────────── -->
+    <div id="resultCard" class="card result-card" style="display:none;">
+      <div class="result-header">
+        <span class="result-status-dot" id="resultDot"></span>
+        <span class="result-label">Detection Result</span>
+      </div>
+      <h2 class="result-disease" id="disease"></h2>
+      <div class="confidence-track">
+        <div class="confidence-fill" id="confidenceFill"></div>
+      </div>
+      <div class="confidence-row">
+        <span class="confidence-text" id="confidenceText"></span>
+        <span class="confidence-value" id="confidenceValue"></span>
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      PlantVillage Dataset · 38 disease classes · MobileNetV2
+    </footer>
+
+  </div><!-- /page-wrapper -->
+
+  <script src="/static/script.js"></script>
+</body>
+</html>

@@ -1,164 +1,196 @@
 import cv2
-import tensorflow as tf
 import numpy as np
-import os
+import tensorflow as tf
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-import tkinter as tk
-from tkinter import filedialog
+from pathlib import Path
 
-MODEL_PATH=os.path.join(os.path.dirname(__file__),"..","models","crop_disease_mobilenet.h5")
-CLASS_PATH=os.path.join(os.path.dirname(__file__),"class_names.txt")
+# ─────────────────────────────────────────────
+#  Paths  (resolved relative to project root,
+#          so the file works from any cwd)
+# ─────────────────────────────────────────────
+ROOT_DIR   = Path(__file__).resolve().parent.parent   # project root
+MODEL_PATH = ROOT_DIR / "models" / "crop_disease_mobilenet.h5"
+NAMES_PATH = ROOT_DIR / "cv_app"  / "class_names.txt"
 
-print("Loading model...")
-model=tf.keras.models.load_model(MODEL_PATH)
-print("Model loaded successfully!")
+# ─────────────────────────────────────────────
+#  Constants
+# ─────────────────────────────────────────────
+IMG_SIZE             = 224
+CONFIDENCE_THRESHOLD = 0.75
+GREEN_THRESHOLD      = 0.05
+GREEN_LOWER          = np.array([25,  40,  40],  dtype=np.uint8)
+GREEN_UPPER          = np.array([85, 255, 255],  dtype=np.uint8)
 
-with open(CLASS_PATH,"r") as f:
-    class_names=[line.strip() for line in f.readlines()]
+# ── Overlay colours (BGR) ──────────────────────
+COLOR_OK      = (0, 220, 80)    # green  — confident prediction
+COLOR_LOW     = (0, 180, 255)   # orange — low confidence
+COLOR_SCAN    = (200, 200, 0)   # cyan   — scanning / no leaf
+COLOR_BG      = (0, 0, 0)       # black  — text background box
 
-def format_class_name(name):
-    if "___" in name:
-        plant,disease=name.split("___")
-        plant=plant.replace("_"," ").replace(",","").replace("(including_sour)","").replace("(maize)","").replace("(","").replace(")","").strip()
-        disease=disease.replace("_"," ").replace("(","").replace(")","").strip()
-        if plant.lower() in disease.lower():
-            disease=disease.lower().replace(plant.lower(),"").strip()
-        return f"{plant.title()} {disease.title()}".strip()
-    return name.replace("_"," ").title()
+# ─────────────────────────────────────────────
+#  Model + Class Names  (loaded once)
+# ─────────────────────────────────────────────
+print(f"[*] Loading model from {MODEL_PATH} …")
+model: tf.keras.Model = tf.keras.models.load_model(str(MODEL_PATH))
+print("[✓] Model ready.")
 
-IMG_SIZE=224
-CONFIDENCE_THRESHOLD=0.75
-GREEN_THRESHOLD=0.05
-
-def has_leaf(frame):
-    hsv=cv2.cvtColor(frame,cv2.COLOR_BGR2HSV)
-    lower_green=np.array([25,40,40])
-    upper_green=np.array([85,255,255])
-    mask=cv2.inRange(hsv,lower_green,upper_green)
-    green_ratio=np.sum(mask>0)/(frame.shape[0]*frame.shape[1])
-    return green_ratio>GREEN_THRESHOLD
-
-def predict_frame(frame):
-    frame = cv2.convertScaleAbs(frame, alpha=1.2, beta=20)
-    img=cv2.resize(frame,(IMG_SIZE,IMG_SIZE))
-    img=np.expand_dims(img,axis=0)
-    img=preprocess_input(img)
-    predictions=model.predict(img,verbose=0)
-    confidence=float(np.max(predictions))
-    class_index=int(np.argmax(predictions))
-    raw_name=class_names[class_index]
-    clean_name=format_class_name(raw_name)
-    return clean_name,confidence
-def draw_text(frame,text1,text2,color):
-    font=cv2.FONT_HERSHEY_SIMPLEX
-    thickness=2
-    font_scale=0.7
-
-    (w1,h1),_=cv2.getTextSize(text1,font,font_scale,thickness)
-    (w2,h2),_=cv2.getTextSize(text2,font,font_scale,thickness)
-
-    x=20
-    y1=40
-    y2=y1+h1+15
-
-    max_width=max(w1,w2)
-
-    cv2.rectangle(frame,
-                  (x-10,y1-h1-10),
-                  (x+max_width+10,y2+10),
-                  (0,0,0),
-                  -1)
-
-    cv2.putText(frame,text1,(x,y1),font,font_scale,color,thickness,cv2.LINE_AA)
-    cv2.putText(frame,text2,(x,y2),font,font_scale,color,thickness,cv2.LINE_AA)
-
-
-root=tk.Tk()
-root.withdraw()
-
-print("Choose input method:")
-print("1 - Webcam Live Detection")
-print("2 - Select Image File")
-
-choice=input("Enter 1 or 2: ")
-from collections import deque
-prediction_buffer = deque(maxlen=5)
-
-if choice=="1":
-    cap=cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Could not open webcam.")
-        exit()
-
-    print("Press 'q' to quit.")
-
-    while True:
-        ret,frame=cap.read()
-        if not ret:
-            break
-
-        if has_leaf(frame):
-            label,confidence=predict_frame(frame)
-            prediction_buffer.append((label,confidence))
-
-            avg_confidence = sum(c for _,c in prediction_buffer)/len(prediction_buffer)
-            label = max(set(l for l,_ in prediction_buffer), key=lambda x: sum(1 for l,_ in prediction_buffer if l==x))
-            confidence = avg_confidence
-            if confidence>CONFIDENCE_THRESHOLD:
-                text1=f"Disease: {label}"
-                text2=f"Confidence: {confidence*100:.2f}%"
-                color=(0,255,0)
-            else:
-                text="Leaf detected but unsure"
-                color=(0,165,255)
-        else:
-            text="No leaf detected"
-            color=(0,0,255)
-
-        draw_text(frame,text,color)
-        cv2.imshow("Crop Disease Detection",frame)
-
-        key=cv2.waitKey(1)
-        if key==ord('q') or key==27:
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-elif choice=="2":
-
-    file_path=filedialog.askopenfilename(
-        title="Select Leaf Image",
-        filetypes=[("Image Files","*.jpg *.jpeg *.png")]
-    )
-
-    if not file_path:
-        print("No file selected.")
-        exit()
-
-    print("Processing image...")
-
-    frame=cv2.imread(file_path)
-
-    if has_leaf(frame):
-        label,confidence=predict_frame(frame)
-        if confidence>CONFIDENCE_THRESHOLD:
-            text1=f"Disease: {label}"
-            text2=f"Confidence: {confidence*100:.2f}%"
-            color=(0,255,0)
-        else:
-            text="Leaf detected but unsure"
-            color=(0,165,255)
-    else:
-        text="No leaf detected"
-        color=(0,0,255)
-    draw_text(frame,text1,text2,color)
-
-    cv2.imshow("Prediction Result",frame)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
+if NAMES_PATH.exists():
+    with open(NAMES_PATH, "r") as f:
+        class_names = [line.strip() for line in f if line.strip()]
+    print(f"[✓] Loaded {len(class_names)} class names.")
 else:
-    print("Invalid choice.")
+    # ── Fallback: full PlantVillage 38-class list ──────────────
+    print(f"[!] {NAMES_PATH} not found — using built-in class list.")
+    class_names = [
+        "Apple___Apple_scab", "Apple___Black_rot",
+        "Apple___Cedar_apple_rust", "Apple___healthy",
+        "Blueberry___healthy",
+        "Cherry_(including_sour)___Powdery_mildew",
+        "Cherry_(including_sour)___healthy",
+        "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+        "Corn_(maize)___Common_rust_",
+        "Corn_(maize)___Northern_Leaf_Blight", "Corn_(maize)___healthy",
+        "Grape___Black_rot", "Grape___Esca_(Black_Measles)",
+        "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)", "Grape___healthy",
+        "Orange___Haunglongbing_(Citrus_greening)",
+        "Peach___Bacterial_spot", "Peach___healthy",
+        "Pepper,_bell___Bacterial_spot", "Pepper,_bell___healthy",
+        "Potato___Early_blight", "Potato___Late_blight",
+        "Potato___healthy", "Raspberry___healthy",
+        "Soybean___healthy", "Squash___Powdery_mildew",
+        "Strawberry___Leaf_scorch", "Strawberry___healthy",
+        "Tomato___Bacterial_spot", "Tomato___Early_blight",
+        "Tomato___Late_blight", "Tomato___Leaf_Mold",
+        "Tomato___Septoria_leaf_spot",
+        "Tomato___Spider_mites Two-spotted_spider_mite",
+        "Tomato___Target_Spot",
+        "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+        "Tomato___Tomato_mosaic_virus", "Tomato___healthy",
+    ]
 
-root.destroy()
+# ─────────────────────────────────────────────
+#  Core helpers
+# ─────────────────────────────────────────────
+def has_leaf(frame: np.ndarray) -> bool:
+    """
+    Returns True when enough green pixels are present to suggest a leaf.
+    Works on the raw frame (before brightness adjustment) so that leaf
+    detection and prediction both see a consistent image.
+    """
+    hsv   = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask  = cv2.inRange(hsv, GREEN_LOWER, GREEN_UPPER)
+    ratio = np.count_nonzero(mask) / mask.size   # BUG FIX: mask.size is faster
+    return ratio > GREEN_THRESHOLD
+
+
+def preprocess_frame(frame: np.ndarray) -> np.ndarray:
+    """
+    Shared preprocessing pipeline used by BOTH live_detection.py and
+    main.py (via import) so predictions are always consistent.
+
+    Pipeline: mild brightness/contrast boost → resize → MobileNetV2 norm.
+    """
+    # slight enhancement — keeps natural colours, helps low-light cams
+    enhanced = cv2.convertScaleAbs(frame, alpha=1.2, beta=20)
+    img      = cv2.resize(enhanced, (IMG_SIZE, IMG_SIZE))
+    img      = np.expand_dims(img.astype(np.float32), axis=0)
+    return preprocess_input(img)   # ← MobileNetV2 normalisation (−1 … 1)
+
+
+def predict_frame(frame: np.ndarray) -> tuple[str, float]:
+    """
+    Run inference on a BGR frame.
+    Returns (label, confidence_0_to_1).
+    """
+    preds      = model.predict(preprocess_frame(frame), verbose=0)
+    idx        = int(np.argmax(preds[0]))
+    confidence = float(preds[0][idx])
+
+    if confidence < CONFIDENCE_THRESHOLD:
+        return f"Uncertain ({class_names[idx]})", confidence
+
+    return class_names[idx], confidence
+
+
+# ─────────────────────────────────────────────
+#  Frame annotation
+# ─────────────────────────────────────────────
+def _draw_label(frame: np.ndarray, text: str, color: tuple) -> None:
+    """Draw a filled-background label at the top-left of the frame."""
+    font       = cv2.FONT_HERSHEY_SIMPLEX
+    scale, thickness = 0.65, 2
+    (tw, th), baseline = cv2.getTextSize(text, font, scale, thickness)
+    x1, y1 = 15, 15
+    # filled rectangle behind text so it's readable on any background
+    cv2.rectangle(frame, (x1, y1), (x1 + tw + 10, y1 + th + 10), COLOR_BG, -1)
+    cv2.putText(frame, text, (x1 + 5, y1 + th + 3), font, scale, color, thickness)
+
+
+def process_frame(frame: np.ndarray) -> np.ndarray:
+    """
+    Annotate a single frame with the prediction overlay.
+    Safe to call in a loop — returns the modified frame.
+    """
+    if has_leaf(frame):
+        label, confidence = predict_frame(frame)
+        pct   = confidence * 100
+        text  = f"{label}  {pct:.1f}%"
+
+        # BUG FIX: only colour green when confidence is actually high enough
+        color = COLOR_OK if confidence >= CONFIDENCE_THRESHOLD else COLOR_LOW
+        _draw_label(frame, text, color)
+
+        # ── thin confidence bar at bottom of frame ──────────────
+        bar_w = int(frame.shape[1] * confidence)
+        cv2.rectangle(
+            frame,
+            (0, frame.shape[0] - 6),
+            (bar_w, frame.shape[0]),
+            color, -1,
+        )
+    else:
+        _draw_label(frame, "Scanning for leaf...", COLOR_SCAN)
+
+    return frame
+
+
+# ─────────────────────────────────────────────
+#  Standalone OpenCV window (run this file directly)
+# ─────────────────────────────────────────────
+def run_live_detection(camera_index: int = 0) -> None:
+    """
+    Opens a webcam window and runs live disease detection.
+    Press  Q  or  ESC  to quit.
+    """
+    cap = cv2.VideoCapture(camera_index)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+
+    if not cap.isOpened():
+        print(f"[✗] Cannot open camera index {camera_index}.")
+        return
+
+    print("[✓] Webcam open. Press Q or ESC to quit.")
+
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("[!] Failed to grab frame — retrying …")
+                continue
+
+            annotated = process_frame(frame)
+            cv2.imshow("Crop Disease Detection  |  Q to quit", annotated)
+
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), ord("Q"), 27):   # Q or ESC
+                break
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        print("[✓] Camera released.")
+
+
+if __name__ == "__main__":
+    run_live_detection()
