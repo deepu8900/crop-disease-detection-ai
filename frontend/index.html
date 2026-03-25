@@ -11,14 +11,12 @@
 </head>
 <body>
 
-  <!-- Decorative background blobs -->
   <div class="bg-blob blob-1"></div>
   <div class="bg-blob blob-2"></div>
   <div class="bg-blob blob-3"></div>
 
   <div class="page-wrapper">
 
-    <!-- ── Header ───────────────────────────── -->
     <header class="site-header">
       <div class="header-icon">
         <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -32,7 +30,6 @@
       </div>
     </header>
 
-    <!-- ── Mode Selector ─────────────────────── -->
     <div class="mode-selector">
       <button class="mode-btn active" id="btn-upload" onclick="showUpload()">
         <span class="mode-icon">
@@ -58,10 +55,9 @@
       </button>
     </div>
 
-    <!-- ── Upload Section ────────────────────── -->
     <div id="upload-section" class="card section-card">
 
-      <!-- Drop Zone -->
+
       <div class="drop-zone" id="dropZone"
            ondragover="handleDragOver(event)"
            ondragleave="handleDragLeave(event)"
@@ -78,20 +74,17 @@
         <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
       </div>
 
-      <!-- Preview -->
       <div id="previewBox" class="preview-box" style="display:none;">
         <img id="previewImage" alt="Leaf preview">
         <button class="clear-btn" onclick="clearImage()" title="Remove image">✕</button>
       </div>
 
-      <!-- Predict Button -->
       <button class="predict-btn" id="predictBtn" onclick="predictImage()" style="display:none;">
         <span id="predictBtnText">Analyse Leaf</span>
         <span id="predictSpinner" class="spinner" style="display:none;"></span>
       </button>
     </div>
 
-    <!-- ── Webcam Section ─────────────────────── -->
     <div id="webcam-section" class="card section-card" style="display:none;">
       <div class="webcam-wrapper">
         <img id="liveFeed" class="live-feed" alt="Live webcam feed">
@@ -99,9 +92,40 @@
       </div>
       <p class="webcam-hint">Point your camera at a crop leaf — detection updates in real time</p>
       <button class="stop-btn" onclick="stopWebcam()">Stop Camera</button>
+
+      <div id="liveResultPanel" class="live-result-panel" style="display:none;">
+        <div class="live-result-header">
+          <span class="live-result-dot" id="liveResultDot"></span>
+          <span class="live-result-label">Best Detection So Far</span>
+          <button class="reset-btn" onclick="resetLiveResult()" title="Reset best result">↺ Reset</button>
+        </div>
+
+        <div class="live-result-body">
+     
+          <div class="snapshot-wrapper">
+            <img id="snapshotImg" class="snapshot-img" alt="Best detection snapshot">
+            <span class="snapshot-tag">📸 Snapshot</span>
+          </div>
+
+          <div class="live-result-info">
+            <h3 class="live-disease" id="liveDisease"></h3>
+            <div class="confidence-track">
+              <div class="confidence-fill" id="liveConfidenceFill"></div>
+            </div>
+            <div class="confidence-row">
+              <span class="confidence-text" id="liveConfidenceText"></span>
+              <span class="confidence-value" id="liveConfidenceValue"></span>
+            </div>
+            <a id="downloadSnapshot" class="download-btn" download="crop_disease_snapshot.jpg">
+              ⬇ Download Snapshot
+            </a>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-    <!-- ── Result Card ────────────────────────── -->
+  
     <div id="resultCard" class="card result-card" style="display:none;">
       <div class="result-header">
         <span class="result-status-dot" id="resultDot"></span>
@@ -121,7 +145,7 @@
       PlantVillage Dataset · 38 disease classes · MobileNetV2
     </footer>
 
-  </div><!-- /page-wrapper -->
+  </div>
 
   <script src="/static/script.js"></script>
 </body>

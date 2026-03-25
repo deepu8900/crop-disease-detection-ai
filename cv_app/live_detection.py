@@ -3,33 +3,28 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 from pathlib import Path
+import threading
 
-# ─────────────────────────────────────────────
-#  Paths  (resolved relative to project root,
-#          so the file works from any cwd)
-# ─────────────────────────────────────────────
-ROOT_DIR   = Path(__file__).resolve().parent.parent   # project root
+ROOT_DIR   = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT_DIR / "models" / "crop_disease_mobilenet.h5"
 NAMES_PATH = ROOT_DIR / "cv_app"  / "class_names.txt"
 
-# ─────────────────────────────────────────────
-#  Constants
-# ─────────────────────────────────────────────
-IMG_SIZE             = 224
+IMG_SIZE             = 224    
 CONFIDENCE_THRESHOLD = 0.75
-GREEN_THRESHOLD      = 0.05
-GREEN_LOWER          = np.array([25,  40,  40],  dtype=np.uint8)
-GREEN_UPPER          = np.array([85, 255, 255],  dtype=np.uint8)
 
-# ── Overlay colours (BGR) ──────────────────────
-COLOR_OK      = (0, 220, 80)    # green  — confident prediction
-COLOR_LOW     = (0, 180, 255)   # orange — low confidence
-COLOR_SCAN    = (200, 200, 0)   # cyan   — scanning / no leaf
-COLOR_BG      = (0, 0, 0)       # black  — text background box
+GREEN_RANGES = [
+    (np.array([22,  40,  40], dtype=np.uint8),
+     np.array([95, 255, 255], dtype=np.uint8)),   
+    (np.array([15,  40,  40], dtype=np.uint8),
+     np.array([22, 255, 255], dtype=np.uint8)),   
+]
+LEAF_PIXEL_MIN = 0.06   
 
-# ─────────────────────────────────────────────
-#  Model + Class Names  (loaded once)
-# ─────────────────────────────────────────────
+COLOR_OK   = (0, 220, 80)
+COLOR_LOW  = (0, 180, 255)
+COLOR_SCAN = (200, 200, 0)
+COLOR_BG   = (0, 0, 0)
+
 print(f"[*] Loading model from {MODEL_PATH} …")
 model: tf.keras.Model = tf.keras.models.load_model(str(MODEL_PATH))
 print("[✓] Model ready.")
@@ -39,7 +34,6 @@ if NAMES_PATH.exists():
         class_names = [line.strip() for line in f if line.strip()]
     print(f"[✓] Loaded {len(class_names)} class names.")
 else:
-    # ── Fallback: full PlantVillage 38-class list ──────────────
     print(f"[!] {NAMES_PATH} not found — using built-in class list.")
     class_names = [
         "Apple___Apple_scab", "Apple___Black_rot",
@@ -68,40 +62,54 @@ else:
         "Tomato___Tomato_mosaic_virus", "Tomato___healthy",
     ]
 
-# ─────────────────────────────────────────────
-#  Core helpers
-# ─────────────────────────────────────────────
+
+_lock = threading.Lock()
+
+best_result: dict = {
+    "disease":    None,
+    "confidence": 0.0,
+    "snapshot":   None,
+}
+
+def update_best_result(label: str, confidence: float, frame: np.ndarray) -> None:
+    _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    with _lock:
+        best_result["disease"]    = label
+        best_result["confidence"] = round(confidence * 100, 2)
+        best_result["snapshot"]   = buffer.tobytes()
+
+def get_best_result() -> dict:
+    with _lock:
+        return dict(best_result)
+
+def reset_best_result() -> None:
+    with _lock:
+        best_result["disease"]    = None
+        best_result["confidence"] = 0.0
+        best_result["snapshot"]   = None
+
 def has_leaf(frame: np.ndarray) -> bool:
     """
-    Returns True when enough green pixels are present to suggest a leaf.
-    Works on the raw frame (before brightness adjustment) so that leaf
-    detection and prediction both see a consistent image.
+    Fast HSV colour check — runs in <1ms, no model needed.
+    Covers healthy (green) and diseased (yellow-green, yellow) leaves.
+    Rejects faces, hands, walls, sky, soil instantly.
     """
-    hsv   = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask  = cv2.inRange(hsv, GREEN_LOWER, GREEN_UPPER)
-    ratio = np.count_nonzero(mask) / mask.size   # BUG FIX: mask.size is faster
-    return ratio > GREEN_THRESHOLD
-
+    hsv      = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    combined = np.zeros(hsv.shape[:2], dtype=np.uint8)
+    for lower, upper in GREEN_RANGES:
+        combined = cv2.bitwise_or(combined, cv2.inRange(hsv, lower, upper))
+    ratio = np.count_nonzero(combined) / combined.size
+    return ratio >= LEAF_PIXEL_MIN
 
 def preprocess_frame(frame: np.ndarray) -> np.ndarray:
-    """
-    Shared preprocessing pipeline used by BOTH live_detection.py and
-    main.py (via import) so predictions are always consistent.
-
-    Pipeline: mild brightness/contrast boost → resize → MobileNetV2 norm.
-    """
-    # slight enhancement — keeps natural colours, helps low-light cams
+    """MobileNetV2 preprocessing — resize + normalise to -1…1."""
     enhanced = cv2.convertScaleAbs(frame, alpha=1.2, beta=20)
     img      = cv2.resize(enhanced, (IMG_SIZE, IMG_SIZE))
     img      = np.expand_dims(img.astype(np.float32), axis=0)
-    return preprocess_input(img)   # ← MobileNetV2 normalisation (−1 … 1)
+    return preprocess_input(img)   
 
 
 def predict_frame(frame: np.ndarray) -> tuple[str, float]:
-    """
-    Run inference on a BGR frame.
-    Returns (label, confidence_0_to_1).
-    """
     preds      = model.predict(preprocess_frame(frame), verbose=0)
     idx        = int(np.argmax(preds[0]))
     confidence = float(preds[0][idx])
@@ -111,36 +119,29 @@ def predict_frame(frame: np.ndarray) -> tuple[str, float]:
 
     return class_names[idx], confidence
 
-
-# ─────────────────────────────────────────────
-#  Frame annotation
-# ─────────────────────────────────────────────
 def _draw_label(frame: np.ndarray, text: str, color: tuple) -> None:
-    """Draw a filled-background label at the top-left of the frame."""
-    font       = cv2.FONT_HERSHEY_SIMPLEX
+    font             = cv2.FONT_HERSHEY_SIMPLEX
     scale, thickness = 0.65, 2
-    (tw, th), baseline = cv2.getTextSize(text, font, scale, thickness)
+    (tw, th), _      = cv2.getTextSize(text, font, scale, thickness)
     x1, y1 = 15, 15
-    # filled rectangle behind text so it's readable on any background
     cv2.rectangle(frame, (x1, y1), (x1 + tw + 10, y1 + th + 10), COLOR_BG, -1)
     cv2.putText(frame, text, (x1 + 5, y1 + th + 3), font, scale, color, thickness)
 
 
 def process_frame(frame: np.ndarray) -> np.ndarray:
-    """
-    Annotate a single frame with the prediction overlay.
-    Safe to call in a loop — returns the modified frame.
-    """
     if has_leaf(frame):
         label, confidence = predict_frame(frame)
-        pct   = confidence * 100
-        text  = f"{label}  {pct:.1f}%"
-
-        # BUG FIX: only colour green when confidence is actually high enough
+        pct  = confidence * 100
+        text = f"{label}  {pct:.1f}%"
         color = COLOR_OK if confidence >= CONFIDENCE_THRESHOLD else COLOR_LOW
+
+        with _lock:
+            current_best = best_result["confidence"]
+        if pct > current_best and confidence >= CONFIDENCE_THRESHOLD:
+            update_best_result(label, confidence, frame.copy())
+
         _draw_label(frame, text, color)
 
-        # ── thin confidence bar at bottom of frame ──────────────
         bar_w = int(frame.shape[1] * confidence)
         cv2.rectangle(
             frame,
@@ -153,15 +154,7 @@ def process_frame(frame: np.ndarray) -> np.ndarray:
 
     return frame
 
-
-# ─────────────────────────────────────────────
-#  Standalone OpenCV window (run this file directly)
-# ─────────────────────────────────────────────
 def run_live_detection(camera_index: int = 0) -> None:
-    """
-    Opens a webcam window and runs live disease detection.
-    Press  Q  or  ESC  to quit.
-    """
     cap = cv2.VideoCapture(camera_index)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -179,12 +172,10 @@ def run_live_detection(camera_index: int = 0) -> None:
             if not ret:
                 print("[!] Failed to grab frame — retrying …")
                 continue
-
             annotated = process_frame(frame)
             cv2.imshow("Crop Disease Detection  |  Q to quit", annotated)
-
             key = cv2.waitKey(1) & 0xFF
-            if key in (ord("q"), ord("Q"), 27):   # Q or ESC
+            if key in (ord("q"), ord("Q"), 27):
                 break
     finally:
         cap.release()
