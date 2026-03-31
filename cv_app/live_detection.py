@@ -5,29 +5,48 @@ from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 from pathlib import Path
 import threading
 
-ROOT_DIR   = Path(__file__).resolve().parent.parent
-MODEL_PATH = ROOT_DIR / "models" / "crop_disease_mobilenet.h5"
-NAMES_PATH = ROOT_DIR / "cv_app"  / "class_names.txt"
+ROOT_DIR        = Path(__file__).resolve().parent.parent
+MODEL_PATH      = ROOT_DIR / "models" / "crop_disease_mobilenet.h5"
+NAMES_PATH      = ROOT_DIR / "cv_app"  / "class_names.txt"
 
-IMG_SIZE             = 224    
+YOLO_MODEL_NAME = str(ROOT_DIR / "models" / "yolov8n.pt")   
+IMG_SIZE             = 224
 CONFIDENCE_THRESHOLD = 0.75
 
 GREEN_RANGES = [
     (np.array([22,  40,  40], dtype=np.uint8),
-     np.array([95, 255, 255], dtype=np.uint8)),   
+     np.array([95, 255, 255], dtype=np.uint8)),
     (np.array([15,  40,  40], dtype=np.uint8),
-     np.array([22, 255, 255], dtype=np.uint8)),   
+     np.array([22, 255, 255], dtype=np.uint8)),
 ]
-LEAF_PIXEL_MIN = 0.06   
+LEAF_PIXEL_MIN    = 0.06
 
-COLOR_OK   = (0, 220, 80)
-COLOR_LOW  = (0, 180, 255)
-COLOR_SCAN = (200, 200, 0)
-COLOR_BG   = (0, 0, 0)
+YOLO_CONF         = 0.07  
+YOLO_PADDING      = 10     
 
-print(f"[*] Loading model from {MODEL_PATH} …")
+YOLO_PLANT_CLASSES = {58, 60, 62} 
+
+COLOR_OK          = (0, 220, 80)
+COLOR_LOW         = (0, 180, 255)
+COLOR_SCAN        = (200, 200, 0)
+COLOR_BG          = (0, 0, 0)
+COLOR_BBOX        = (0, 255, 120)
+
+print(f"[*] Loading disease model from {MODEL_PATH} …")
 model: tf.keras.Model = tf.keras.models.load_model(str(MODEL_PATH))
-print("[✓] Model ready.")
+print("[✓] Disease model ready.")
+
+yolo_model = None
+try:
+    from ultralytics import YOLO
+    yolo_model = YOLO(YOLO_MODEL_NAME)
+    print("[✓] YOLOv8n pretrained (COCO) loaded — no training needed.")
+except ImportError:
+    print("[!] ultralytics not installed — run: pip install ultralytics")
+    print("    → Falling back to green colour check only.")
+except Exception as e:
+    print(f"[!] YOLO load failed: {e}")
+    print("    → Falling back to green colour check only.")
 
 if NAMES_PATH.exists():
     with open(NAMES_PATH, "r") as f:
@@ -62,7 +81,6 @@ else:
         "Tomato___Tomato_mosaic_virus", "Tomato___healthy",
     ]
 
-
 _lock = threading.Lock()
 
 best_result: dict = {
@@ -88,28 +106,58 @@ def reset_best_result() -> None:
         best_result["confidence"] = 0.0
         best_result["snapshot"]   = None
 
-def has_leaf(frame: np.ndarray) -> bool:
-    """
-    Fast HSV colour check — runs in <1ms, no model needed.
-    Covers healthy (green) and diseased (yellow-green, yellow) leaves.
-    Rejects faces, hands, walls, sky, soil instantly.
-    """
+def _green_check(frame: np.ndarray) -> bool:
+    
     hsv      = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     combined = np.zeros(hsv.shape[:2], dtype=np.uint8)
     for lower, upper in GREEN_RANGES:
         combined = cv2.bitwise_or(combined, cv2.inRange(hsv, lower, upper))
-    ratio = np.count_nonzero(combined) / combined.size
-    return ratio >= LEAF_PIXEL_MIN
+    return np.count_nonzero(combined) / combined.size >= LEAF_PIXEL_MIN
 
+def _yolo_detect(frame: np.ndarray):
+ 
+    if yolo_model is None:
+        return None
+
+    results = yolo_model(
+        frame,
+        conf    = YOLO_CONF,
+        classes = list(YOLO_PLANT_CLASSES),  
+        verbose = False,
+    )
+    boxes = []
+    h, w  = frame.shape[:2]
+
+    for r in results:
+        for box in r.boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+            x1 = max(0, x1 - YOLO_PADDING)
+            y1 = max(0, y1 - YOLO_PADDING)
+            x2 = min(w, x2 + YOLO_PADDING)
+            y2 = min(h, y2 + YOLO_PADDING)
+            boxes.append((x1, y1, x2, y2))
+
+    return boxes
+
+
+def has_leaf(frame: np.ndarray):
+    if not _green_check(frame):
+        return False   
+
+    if yolo_model is None:
+        return True   
+
+    boxes = _yolo_detect(frame)
+    return boxes       
 def preprocess_frame(frame: np.ndarray) -> np.ndarray:
-    """MobileNetV2 preprocessing — resize + normalise to -1…1."""
     enhanced = cv2.convertScaleAbs(frame, alpha=1.2, beta=20)
     img      = cv2.resize(enhanced, (IMG_SIZE, IMG_SIZE))
     img      = np.expand_dims(img.astype(np.float32), axis=0)
-    return preprocess_input(img)   
+    return preprocess_input(img)
 
 
 def predict_frame(frame: np.ndarray) -> tuple[str, float]:
+    """Run MobileNetV2 disease classifier on a BGR frame or crop."""
     preds      = model.predict(preprocess_frame(frame), verbose=0)
     idx        = int(np.argmax(preds[0]))
     confidence = float(preds[0][idx])
@@ -129,30 +177,61 @@ def _draw_label(frame: np.ndarray, text: str, color: tuple) -> None:
 
 
 def process_frame(frame: np.ndarray) -> np.ndarray:
-    if has_leaf(frame):
-        label, confidence = predict_frame(frame)
-        pct  = confidence * 100
-        text = f"{label}  {pct:.1f}%"
-        color = COLOR_OK if confidence >= CONFIDENCE_THRESHOLD else COLOR_LOW
 
-        with _lock:
-            current_best = best_result["confidence"]
-        if pct > current_best and confidence >= CONFIDENCE_THRESHOLD:
-            update_best_result(label, confidence, frame.copy())
+    leaf_result = has_leaf(frame)
 
-        _draw_label(frame, text, color)
-
-        bar_w = int(frame.shape[1] * confidence)
-        cv2.rectangle(
-            frame,
-            (0, frame.shape[0] - 6),
-            (bar_w, frame.shape[0]),
-            color, -1,
-        )
-    else:
+    if leaf_result is False or leaf_result == []:
         _draw_label(frame, "Scanning for leaf...", COLOR_SCAN)
+        return frame
+
+    if leaf_result is True:
+        label, confidence = predict_frame(frame)
+        _annotate(frame, label, confidence, bbox=None)
+        return frame
+
+    boxes = leaf_result
+   
+    best_box = max(boxes, key=lambda b: (b[2]-b[0]) * (b[3]-b[1]))
+    x1, y1, x2, y2 = best_box
+
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0:
+        _draw_label(frame, "Scanning for leaf...", COLOR_SCAN)
+        return frame
+
+    label, confidence = predict_frame(crop)
+
+    cv2.rectangle(frame, (x1, y1), (x2, y2), COLOR_BBOX, 2)
+    _annotate(frame, label, confidence, bbox=(x1, y1))
 
     return frame
+
+
+def _annotate(frame, label, confidence, bbox=None):
+    
+    pct   = confidence * 100
+    text  = f"{label}  {pct:.1f}%"
+    color = COLOR_OK if confidence >= CONFIDENCE_THRESHOLD else COLOR_LOW
+
+    if bbox:
+        x1, y1 = bbox
+        font             = cv2.FONT_HERSHEY_SIMPLEX
+        scale, thickness = 0.65, 2
+        (tw, th), _      = cv2.getTextSize(text, font, scale, thickness)
+        lx = max(0, x1)
+        ly = max(th + 15, y1 - 5)
+        cv2.rectangle(frame, (lx, ly - th - 8), (lx + tw + 10, ly + 5), COLOR_BG, -1)
+        cv2.putText(frame, text, (lx + 5, ly), font, scale, color, thickness)
+    else:
+        _draw_label(frame, text, color)
+
+    bar_w = int(frame.shape[1] * confidence)
+    cv2.rectangle(frame, (0, frame.shape[0]-6), (bar_w, frame.shape[0]), color, -1)
+
+    with _lock:
+        current_best = best_result["confidence"]
+    if pct > current_best and confidence >= CONFIDENCE_THRESHOLD:
+        update_best_result(label, confidence, frame.copy())
 
 def run_live_detection(camera_index: int = 0) -> None:
     cap = cv2.VideoCapture(camera_index)
@@ -170,12 +249,10 @@ def run_live_detection(camera_index: int = 0) -> None:
         while True:
             ret, frame = cap.read()
             if not ret:
-                print("[!] Failed to grab frame — retrying …")
                 continue
             annotated = process_frame(frame)
             cv2.imshow("Crop Disease Detection  |  Q to quit", annotated)
-            key = cv2.waitKey(1) & 0xFF
-            if key in (ord("q"), ord("Q"), 27):
+            if cv2.waitKey(1) & 0xFF in (ord("q"), ord("Q"), 27):
                 break
     finally:
         cap.release()
