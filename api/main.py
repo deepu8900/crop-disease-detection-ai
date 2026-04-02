@@ -8,8 +8,12 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cv_app.live_detection import (
-    has_leaf, predict_frame, process_frame,
-    get_best_result, reset_best_result,
+    has_leaf_colour,    
+    has_leaf_yolo,       
+    predict_frame,
+    process_frame,
+    get_best_result,
+    reset_best_result,
     class_names as CLASS_NAMES,
 )
 
@@ -50,7 +54,7 @@ async def predict(file: UploadFile = File(...)):
         if frame is None:
             raise HTTPException(status_code=400, detail="Could not decode image.")
 
-        if not has_leaf(frame):
+        if not has_leaf_colour(frame): 
             return {"disease": "No leaf detected", "confidence": 0.0, "status": "no_leaf"}
 
         label, confidence = predict_frame(frame)
@@ -67,7 +71,7 @@ async def predict(file: UploadFile = File(...)):
 
 @app.get("/latest_result")
 def latest_result():
-    
+
     result = get_best_result()
     return {
         "disease":      result["disease"],
@@ -78,7 +82,7 @@ def latest_result():
 
 @app.get("/snapshot")
 def snapshot():
-    
+
     result = get_best_result()
     if result["snapshot"] is None:
         raise HTTPException(status_code=404, detail="No snapshot available yet.")
@@ -90,9 +94,9 @@ def snapshot():
 
 @app.post("/reset_result")
 def reset_result():
-    
     reset_best_result()
     return {"status": "reset"}
+
 
 import threading as _threading
 
@@ -102,7 +106,7 @@ _frame_for_pred = {"frame": None, "ready": False}          # input to thread
 
 
 def _prediction_worker():
- 
+
     while True:
         with _pred_lock:
             if not _frame_for_pred["ready"]:
@@ -111,13 +115,12 @@ def _prediction_worker():
                 frame = _frame_for_pred["frame"].copy()
                 _frame_for_pred["ready"] = False
 
-                if has_leaf(frame):
+                if has_leaf_yolo(frame) is not False:  
                     label, confidence = predict_frame(frame)
                     pct   = confidence * 100
                     text  = f"{label}  {pct:.1f}%"
                     color = (0, 220, 80) if confidence >= 0.75 else (0, 180, 255)
 
-                  
                     from cv_app.live_detection import best_result, update_best_result
                     with __import__("cv_app.live_detection",
                                     fromlist=["_lock"])._lock:
@@ -133,7 +136,7 @@ def _prediction_worker():
 
 
 def _draw_overlay(frame: np.ndarray) -> np.ndarray:
-    
+ 
     text  = _latest_label["text"]
     color = _latest_label["color"]
 
@@ -161,7 +164,7 @@ def generate_frames():
     if not cap.isOpened():
         raise RuntimeError("Could not open webcam.")
 
-    SUBMIT_EVERY = 5   
+    SUBMIT_EVERY = 5 
     frame_count  = 0
 
     try:
