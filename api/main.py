@@ -2,16 +2,16 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-import os, sys
+import os, sys, threading, time
 import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import cv_app.live_detection as _ld
 from cv_app.live_detection import (
-    has_leaf_colour,    
-    has_leaf_yolo,       
+    has_leaf_colour,
     predict_frame,
-    process_frame,
+    predict_and_annotate,
     get_best_result,
     reset_best_result,
     class_names as CLASS_NAMES,
@@ -26,10 +26,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BASE_DIR       = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-frontend_path  = os.path.join(BASE_DIR, "frontend")
-
+BASE_DIR      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+frontend_path = os.path.join(BASE_DIR, "frontend")
 app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+
 
 @app.get("/")
 def read_index():
@@ -43,21 +43,20 @@ def health_check():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    """File upload — green check + disease model."""
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
         raise HTTPException(status_code=415, detail="Upload JPEG, PNG, or WebP only.")
-
     try:
         contents = await file.read()
         nparr    = np.frombuffer(contents, np.uint8)
         frame    = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
         if frame is None:
             raise HTTPException(status_code=400, detail="Could not decode image.")
-
-        if not has_leaf_colour(frame): 
+        if not has_leaf_colour(frame):
             return {"disease": "No leaf detected", "confidence": 0.0, "status": "no_leaf"}
-
         label, confidence = predict_frame(frame)
+        if label == "background":
+            return {"disease": "No leaf detected", "confidence": 0.0, "status": "no_leaf"}
         return {
             "disease":    label,
             "confidence": round(confidence * 100, 2),
@@ -71,7 +70,6 @@ async def predict(file: UploadFile = File(...)):
 
 @app.get("/latest_result")
 def latest_result():
-
     result = get_best_result()
     return {
         "disease":      result["disease"],
@@ -82,14 +80,10 @@ def latest_result():
 
 @app.get("/snapshot")
 def snapshot():
-
     result = get_best_result()
     if result["snapshot"] is None:
         raise HTTPException(status_code=404, detail="No snapshot available yet.")
-    return StreamingResponse(
-        iter([result["snapshot"]]),
-        media_type="image/jpeg",
-    )
+    return StreamingResponse(iter([result["snapshot"]]), media_type="image/jpeg")
 
 
 @app.post("/reset_result")
@@ -97,74 +91,48 @@ def reset_result():
     reset_best_result()
     return {"status": "reset"}
 
+_frame_lock  = threading.Lock()
+_result_lock = threading.Lock()
 
-import threading as _threading
-
-_pred_lock   = _threading.Lock()
-_latest_label   = {"text": None, "color": (200, 200, 0)}  # shared state
-_frame_for_pred = {"frame": None, "ready": False}          # input to thread
+_latest_frame  = {"frame": None, "ready": False}
+_latest_label  = {"text": "Scanning for leaf...", "color": (200, 200, 0)}
 
 
 def _prediction_worker():
 
     while True:
-        with _pred_lock:
-            if not _frame_for_pred["ready"]:
-                pass
-            else:
-                frame = _frame_for_pred["frame"].copy()
-                _frame_for_pred["ready"] = False
+        
+        frame = None
+        with _frame_lock:
+            if _latest_frame["ready"]:
+                frame = _latest_frame["frame"].copy()
+                _latest_frame["ready"] = False
 
-                if has_leaf_yolo(frame) is not False:  
-                    label, confidence = predict_frame(frame)
-                    pct   = confidence * 100
-                    text  = f"{label}  {pct:.1f}%"
-                    color = (0, 220, 80) if confidence >= 0.75 else (0, 180, 255)
+        if frame is None:
+            time.sleep(0.01)   
+            continue
 
-                    from cv_app.live_detection import best_result, update_best_result
-                    with __import__("cv_app.live_detection",
-                                    fromlist=["_lock"])._lock:
-                        current_best = best_result["confidence"]
-                    if pct > current_best and confidence >= 0.75:
-                        update_best_result(label, confidence, frame)
+        text, color = predict_and_annotate(frame)
 
-                    _latest_label["text"]  = text
-                    _latest_label["color"] = color
-                else:
-                    _latest_label["text"]  = "Scanning for leaf..."
-                    _latest_label["color"] = (200, 200, 0)
+        with _result_lock:
+            _latest_label["text"]  = text
+            _latest_label["color"] = color
 
-
-def _draw_overlay(frame: np.ndarray) -> np.ndarray:
- 
-    text  = _latest_label["text"]
-    color = _latest_label["color"]
-
-    if text is None:
-        text  = "Scanning for leaf..."
-        color = (200, 200, 0)
-
-    font             = cv2.FONT_HERSHEY_SIMPLEX
-    scale, thickness = 0.65, 2
-    (tw, th), _      = cv2.getTextSize(text, font, scale, thickness)
-    cv2.rectangle(frame, (15, 15), (25 + tw, 25 + th), (0, 0, 0), -1)
-    cv2.putText(frame, text, (20, th + 18), font, scale, color, thickness)
-    return frame
-
-_pred_thread = _threading.Thread(target=_prediction_worker, daemon=True)
+_pred_thread = threading.Thread(target=_prediction_worker, daemon=True)
 _pred_thread.start()
 
 
 def generate_frames():
     cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  480)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
     cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  
 
     if not cap.isOpened():
         raise RuntimeError("Could not open webcam.")
 
-    SUBMIT_EVERY = 5 
+    SUBMIT_EVERY = 8   
     frame_count  = 0
 
     try:
@@ -176,15 +144,23 @@ def generate_frames():
             frame_count += 1
 
             if frame_count % SUBMIT_EVERY == 0:
-                with _pred_lock:
-                    _frame_for_pred["frame"] = frame.copy()
-                    _frame_for_pred["ready"] = True
+                with _frame_lock:
+                    _latest_frame["frame"] = frame.copy()
+                    _latest_frame["ready"] = True
 
-            annotated = _draw_overlay(frame.copy())
+            with _result_lock:
+                text  = _latest_label["text"]
+                color = _latest_label["color"]
+
+            display = frame.copy()
+            font    = cv2.FONT_HERSHEY_SIMPLEX
+            scale, thick = 0.6, 2
+            (tw, th), _  = cv2.getTextSize(text, font, scale, thick)
+            cv2.rectangle(display, (15,15), (25+tw, 25+th), (0,0,0), -1)
+            cv2.putText(display, text, (20, th+18), font, scale, color, thick)
 
             ret, buffer = cv2.imencode(
-                ".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80]
-            )
+                ".jpg", display, [cv2.IMWRITE_JPEG_QUALITY, 65])
             if not ret:
                 continue
 

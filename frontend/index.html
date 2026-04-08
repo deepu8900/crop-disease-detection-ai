@@ -15,137 +15,186 @@
   <div class="bg-blob blob-2"></div>
   <div class="bg-blob blob-3"></div>
 
-  <div class="page-wrapper">
-
-    <header class="site-header">
-      <div class="header-icon">
-        <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M20 4C20 4 8 12 8 22C8 28.627 13.373 34 20 34C26.627 34 32 28.627 32 22C32 12 20 4 20 4Z" fill="currentColor" opacity="0.9"/>
-          <path d="M20 34V20M20 20C20 20 14 15 12 10M20 20C20 20 26 15 28 10" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <div>
-        <h1 class="site-title">Crop Disease Detection</h1>
-        <p class="site-subtitle">Powered by MobileNet · PlantVillage · 38 Classes</p>
-      </div>
-    </header>
-
-    <div class="mode-selector">
-      <button class="mode-btn active" id="btn-upload" onclick="showUpload()">
-        <span class="mode-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="3"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
-        </span>
-        <span class="mode-label">Upload Image</span>
-        <span class="mode-desc">Analyse a leaf photo</span>
-      </button>
-
-      <button class="mode-btn" id="btn-webcam" onclick="showWebcam()">
-        <span class="mode-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M23 7l-7 5 7 5V7z"/>
-            <rect x="1" y="5" width="15" height="14" rx="2"/>
-          </svg>
-        </span>
-        <span class="mode-label">Live Webcam</span>
-        <span class="mode-desc">Real-time detection</span>
-      </button>
+  <!-- ── Header ─────────────────────────────── -->
+  <header class="site-header">
+    <div class="header-icon">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 4C20 4 8 12 8 22C8 28.627 13.373 34 20 34C26.627 34 32 28.627 32 22C32 12 20 4 20 4Z" fill="currentColor" opacity="0.9"/>
+        <path d="M20 34V20M20 20C20 20 14 15 12 10M20 20C20 20 26 15 28 10" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
     </div>
+    <div>
+      <h1 class="site-title">Crop Disease Detection</h1>
+      <p class="site-subtitle">MobileNet · PlantVillage · 38 Classes</p>
+    </div>
+  </header>
 
-    <div id="upload-section" class="card section-card">
+  <!-- ── Main two-column layout ─────────────── -->
+  <div class="main-layout">
 
+    <!-- LEFT: input panel -->
+    <div class="left-panel">
 
-      <div class="drop-zone" id="dropZone"
-           ondragover="handleDragOver(event)"
-           ondragleave="handleDragLeave(event)"
-           ondrop="handleDrop(event)"
-           onclick="document.getElementById('fileInput').click()">
-        <div class="drop-icon">
-          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M24 8L24 32M24 8L16 16M24 8L32 16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M8 36H40" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-          </svg>
+      <!-- Mode selector -->
+      <div class="mode-selector">
+        <button class="mode-btn active" id="btn-upload" onclick="showUpload()">
+          <span class="mode-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="3"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </span>
+          <span class="mode-label">Upload Image</span>
+          <span class="mode-desc">Analyse a leaf photo</span>
+        </button>
+
+        <button class="mode-btn" id="btn-webcam" onclick="showWebcam()">
+          <span class="mode-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 7l-7 5 7 5V7z"/>
+              <rect x="1" y="5" width="15" height="14" rx="2"/>
+            </svg>
+          </span>
+          <span class="mode-label">Live Webcam</span>
+          <span class="mode-desc">Real-time detection</span>
+        </button>
+      </div>
+
+      <!-- Upload section -->
+      <div id="upload-section" class="card section-card">
+        <div class="drop-zone" id="dropZone"
+             ondragover="handleDragOver(event)"
+             ondragleave="handleDragLeave(event)"
+             ondrop="handleDrop(event)"
+             onclick="document.getElementById('fileInput').click()">
+          <div class="drop-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M24 8L24 32M24 8L16 16M24 8L32 16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 36H40" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <p class="drop-primary">Drop a leaf image here</p>
+          <p class="drop-secondary">or click to browse · JPG, PNG, WebP</p>
+          <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
         </div>
-        <p class="drop-primary">Drop a leaf image here</p>
-        <p class="drop-secondary">or click to browse · JPG, PNG, WebP</p>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
+        <div id="previewBox" class="preview-box" style="display:none;">
+          <img id="previewImage" alt="Leaf preview">
+          <button class="clear-btn" onclick="clearImage()" title="Remove image">✕</button>
+        </div>
+        <button class="predict-btn" id="predictBtn" onclick="predictImage()" style="display:none;">
+          <span id="predictBtnText">Analyse Leaf</span>
+          <span id="predictSpinner" class="spinner" style="display:none;"></span>
+        </button>
       </div>
 
-      <div id="previewBox" class="preview-box" style="display:none;">
-        <img id="previewImage" alt="Leaf preview">
-        <button class="clear-btn" onclick="clearImage()" title="Remove image">✕</button>
+      <!-- Webcam section -->
+      <div id="webcam-section" class="card section-card" style="display:none;">
+        <div class="webcam-wrapper">
+          <img id="liveFeed" class="live-feed" alt="Live webcam feed">
+          <div class="webcam-badge">● LIVE</div>
+        </div>
+        <p class="webcam-hint">Point your camera at a crop leaf</p>
+        <button class="stop-btn" onclick="stopWebcam()">Stop Camera</button>
       </div>
 
-      <button class="predict-btn" id="predictBtn" onclick="predictImage()" style="display:none;">
-        <span id="predictBtnText">Analyse Leaf</span>
-        <span id="predictSpinner" class="spinner" style="display:none;"></span>
-      </button>
-    </div>
+    </div><!-- /left-panel -->
 
-    <div id="webcam-section" class="card section-card" style="display:none;">
-      <div class="webcam-wrapper">
-        <img id="liveFeed" class="live-feed" alt="Live webcam feed">
-        <div class="webcam-badge">● LIVE</div>
+    <!-- RIGHT: result panel — data-panel controls which card is visible -->
+    <div class="right-panel" id="rightPanel" data-panel="upload">
+
+      <!-- PANEL: upload result (shown when data-panel="upload") -->
+      <div id="resultCard" class="result-card state-empty panel-upload">
+        <div class="result-placeholder" id="resultPlaceholder">
+          <div class="placeholder-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <path d="M24 16v8M24 28v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <p class="placeholder-text">Analysis results will appear here</p>
+          <p class="placeholder-sub">Upload an image or start the webcam</p>
+        </div>
+
+        <div class="result-content" id="resultContent" style="display:none;">
+          <!-- status badge -->
+          <div class="result-badge" id="resultBadge">
+            <span class="badge-dot" id="resultDot"></span>
+            <span class="badge-text" id="resultBadgeText"></span>
+          </div>
+
+          <!-- disease name -->
+          <h2 class="result-disease" id="disease"></h2>
+
+          <!-- confidence bar -->
+          <div class="conf-section">
+            <div class="conf-label-row">
+              <span class="conf-label">Confidence</span>
+              <span class="conf-value" id="confidenceValue"></span>
+            </div>
+            <div class="confidence-track">
+              <div class="confidence-fill" id="confidenceFill"></div>
+            </div>
+            <span class="conf-status" id="confidenceText"></span>
+          </div>
+        </div>
       </div>
-      <p class="webcam-hint">Point your camera at a crop leaf — detection updates in real time</p>
-      <button class="stop-btn" onclick="stopWebcam()">Stop Camera</button>
 
-      <div id="liveResultPanel" class="live-result-panel" style="display:none;">
+      <!-- PANEL: webcam waiting placeholder (shown when data-panel="webcam-wait") -->
+      <div id="webcamPlaceholder" class="result-card state-empty panel-webcam-wait">
+        <div class="result-placeholder">
+          <div class="placeholder-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
+              <path d="M23 7l-7 5 7 5V7z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="1" y="5" width="15" height="14" rx="2" stroke="currentColor" stroke-width="1.5" transform="translate(9 14)"/>
+            </svg>
+          </div>
+          <p class="placeholder-text">Waiting for detection...</p>
+          <p class="placeholder-sub">Point your camera at a crop leaf</p>
+        </div>
+      </div>
+
+      <!-- PANEL: live webcam best result (shown when data-panel="webcam-result") -->
+      <div id="liveResultPanel" class="result-card live-result-card panel-webcam-result">
         <div class="live-result-header">
           <span class="live-result-dot" id="liveResultDot"></span>
-          <span class="live-result-label">Best Detection So Far</span>
-          <button class="reset-btn" onclick="resetLiveResult()" title="Reset best result">↺ Reset</button>
+          <span class="live-result-label">Best Detection</span>
+          <button class="reset-btn" onclick="resetLiveResult()">↺ Reset</button>
         </div>
-
         <div class="live-result-body">
-     
           <div class="snapshot-wrapper">
-            <img id="snapshotImg" class="snapshot-img" alt="Best detection snapshot">
+            <img id="snapshotImg" class="snapshot-img" alt="Snapshot">
             <span class="snapshot-tag">📸 Snapshot</span>
           </div>
-
           <div class="live-result-info">
+            <div class="result-badge" id="liveBadge" style="margin-bottom:10px;">
+              <span class="badge-dot" id="liveBadgeDot"></span>
+              <span class="badge-text" id="liveBadgeText"></span>
+            </div>
             <h3 class="live-disease" id="liveDisease"></h3>
-            <div class="confidence-track">
-              <div class="confidence-fill" id="liveConfidenceFill"></div>
+            <div class="conf-section">
+              <div class="conf-label-row">
+                <span class="conf-label">Confidence</span>
+                <span class="conf-value" id="liveConfidenceValue"></span>
+              </div>
+              <div class="confidence-track">
+                <div class="confidence-fill" id="liveConfidenceFill"></div>
+              </div>
+              <span class="conf-status" id="liveConfidenceText"></span>
             </div>
-            <div class="confidence-row">
-              <span class="confidence-text" id="liveConfidenceText"></span>
-              <span class="confidence-value" id="liveConfidenceValue"></span>
-            </div>
-            <a id="downloadSnapshot" class="download-btn" download="crop_disease_snapshot.jpg">
-              ⬇ Download Snapshot
-            </a>
+            <a id="downloadSnapshot" class="download-btn" download="crop_disease_snapshot.jpg">⬇ Download Snapshot</a>
           </div>
         </div>
       </div>
 
-    </div>
+    </div><!-- /right-panel -->
 
-  
-    <div id="resultCard" class="card result-card" style="display:none;">
-      <div class="result-header">
-        <span class="result-status-dot" id="resultDot"></span>
-        <span class="result-label">Detection Result</span>
-      </div>
-      <h2 class="result-disease" id="disease"></h2>
-      <div class="confidence-track">
-        <div class="confidence-fill" id="confidenceFill"></div>
-      </div>
-      <div class="confidence-row">
-        <span class="confidence-text" id="confidenceText"></span>
-        <span class="confidence-value" id="confidenceValue"></span>
-      </div>
-    </div>
+  </div><!-- /main-layout -->
 
-    <footer class="site-footer">
-      PlantVillage Dataset · 38 disease classes · MobileNetV2
-    </footer>
-
-  </div>
+  <footer class="site-footer">
+    PlantVillage Dataset · 38 disease classes · MobileNetV2 · YOLOv8
+  </footer>
 
   <script src="/static/script.js"></script>
 </body>
