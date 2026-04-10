@@ -211,7 +211,6 @@ def predict_frame(frame: np.ndarray) -> tuple[str, float]:
     idx        = int(np.argmax(preds))
     confidence = float(preds[idx])
 
-    # 39-class model — reject background predictions
     if BG_CLASS_IDX >= 0 and idx == BG_CLASS_IDX:
         return "background", confidence
 
@@ -235,10 +234,10 @@ def _annotate(frame: np.ndarray, label: str, confidence: float) -> None:
     text  = f"{label}  {pct:.1f}%"
     color = COLOR_OK if confidence >= CONFIDENCE_THRESHOLD else COLOR_LOW
     _draw_label(frame, text, color)
-    # confidence bar at bottom
+
     bar_w = int(frame.shape[1] * confidence)
     cv2.rectangle(frame, (0, frame.shape[0]-6), (bar_w, frame.shape[0]), color, -1)
-    # update best result
+
     with _lock:
         current_best = best_result["confidence"]
     if pct > current_best and confidence >= CONFIDENCE_THRESHOLD:
@@ -259,7 +258,6 @@ def predict_and_annotate(frame: np.ndarray) -> tuple[str, float, np.ndarray]:
     text  = f"{label}  {pct:.1f}%"
     color = COLOR_OK if confidence >= CONFIDENCE_THRESHOLD else COLOR_LOW
 
-    # update best result
     with _lock:
         current_best = best_result["confidence"]
     if pct > current_best and confidence >= CONFIDENCE_THRESHOLD:

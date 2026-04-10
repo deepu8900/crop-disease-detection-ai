@@ -2,12 +2,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const API_PREDICT = "/predict";
 
-  // ── State ─────────────────────────────────────────────
   let webcamActive  = false;
   let pollInterval  = null;
   let lastBestScore = 0;
 
-  // Classes that are healthy — shown in GREEN
   const HEALTHY_KEYWORDS = ["healthy"];
 
   function isHealthy(label) {
@@ -22,28 +20,22 @@ document.addEventListener("DOMContentLoaded", function () {
       raw = raw.slice(11, -1);
     }
 
-    // split on triple underscore
     let parts = raw.split("___");
     if (parts.length < 2) {
-      // no triple underscore — just clean underscores
+     
       return prefix + raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
     }
 
-    // crop name: strip parenthetical e.g. "Corn_(maize)" → "Corn"
     let crop = parts[0].replace(/\s*\(.*?\)/g, "").replace(/_/g, " ").trim();
 
-    // disease name: clean underscores and trailing underscores
     let disease = parts[1].replace(/_+$/g, "").replace(/_/g, " ").trim();
 
-    // remove duplicate: if disease starts with crop name, strip it
-    // e.g. "Apple scab" from "Apple___Apple_scab" → just "Scab"
     let cropLower    = crop.toLowerCase();
     let diseaseLower = disease.toLowerCase();
     if (diseaseLower.startsWith(cropLower)) {
       disease = disease.slice(crop.length).trim();
     }
 
-    // title case the disease part
     disease = disease.replace(/\w/g, c => c.toUpperCase());
 
     if (!disease || disease.toLowerCase() === "healthy") {
@@ -53,12 +45,10 @@ document.addEventListener("DOMContentLoaded", function () {
     return prefix + crop + " — " + disease;
   }
 
-  // ── Panel switcher (single source of truth) ───────────
   function setPanel(name) {
     document.getElementById("rightPanel").dataset.panel = name;
   }
 
-  // ── Mode switchers ─────────────────────────────────────
   function showUpload() {
     if (webcamActive) stopWebcam();
     document.getElementById("upload-section").style.display = "block";
@@ -102,7 +92,6 @@ document.addEventListener("DOMContentLoaded", function () {
     setPanel("upload");
   }
 
-  // ── Placeholder ───────────────────────────────────────
   function resetUploadResult() {
     document.getElementById("resultPlaceholder").style.display = "flex";
     document.getElementById("resultContent").style.display     = "none";
@@ -117,7 +106,6 @@ document.addEventListener("DOMContentLoaded", function () {
     card.className = "result-card state-empty panel-upload";
   }
 
-  // ── Drag and drop ──────────────────────────────────────
   window.handleDragOver = function (e) {
     e.preventDefault();
     document.getElementById("dropZone").classList.add("drag-over");
@@ -157,7 +145,6 @@ document.addEventListener("DOMContentLoaded", function () {
     showPlaceholder();
   };
 
-  // ── Predict ────────────────────────────────────────────
   async function predictImage() {
     const fileInput = document.getElementById("fileInput");
     const file      = fileInput.files[0];
@@ -212,21 +199,21 @@ document.addEventListener("DOMContentLoaded", function () {
     const healthy = success && isHealthy(disease);
 
     if (!success || confidencePct === 0) {
-      // no leaf
+      
       card.className     = "result-card state-noleaf panel-upload";
       badge.classList.add("badge-warn");
       dot.classList.add("dot-warn");
       badgeText.textContent = "No Leaf Detected";
       fill.classList.add("fill-low");
     } else if (healthy) {
-      // healthy
+   
       card.className     = "result-card state-healthy panel-upload";
       badge.classList.add("badge-healthy");
       dot.classList.add("dot-healthy");
       badgeText.textContent = "Healthy Plant ✓";
       fill.classList.add("fill-healthy");
     } else {
-      // disease
+      
       card.className     = "result-card state-disease panel-upload";
       badge.classList.add("badge-disease");
       dot.classList.add("dot-disease");
@@ -239,7 +226,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }));
   }
 
-  // ── Live webcam polling ────────────────────────────────
   async function pollLatestResult() {
     if (!webcamActive) return;
     try {
@@ -344,7 +330,6 @@ document.addEventListener("DOMContentLoaded", function () {
     setTimeout(() => toast.classList.remove("toast-show"), 3500);
   }
 
-  // Expose globals
   window.showUpload   = showUpload;
   window.showWebcam   = showWebcam;
   window.stopWebcam   = stopWebcam;

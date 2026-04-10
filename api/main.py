@@ -43,7 +43,7 @@ def health_check():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    """File upload — green check + disease model."""
+    
     if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
         raise HTTPException(status_code=415, detail="Upload JPEG, PNG, or WebP only.")
     try:

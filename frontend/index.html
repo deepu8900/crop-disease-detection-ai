@@ -15,7 +15,6 @@
   <div class="bg-blob blob-2"></div>
   <div class="bg-blob blob-3"></div>
 
-  <!-- ── Header ─────────────────────────────── -->
   <header class="site-header">
     <div class="header-icon">
       <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -29,13 +28,10 @@
     </div>
   </header>
 
-  <!-- ── Main two-column layout ─────────────── -->
   <div class="main-layout">
 
-    <!-- LEFT: input panel -->
     <div class="left-panel">
 
-      <!-- Mode selector -->
       <div class="mode-selector">
         <button class="mode-btn active" id="btn-upload" onclick="showUpload()">
           <span class="mode-icon">
@@ -61,7 +57,6 @@
         </button>
       </div>
 
-      <!-- Upload section -->
       <div id="upload-section" class="card section-card">
         <div class="drop-zone" id="dropZone"
              ondragover="handleDragOver(event)"
@@ -88,7 +83,6 @@
         </button>
       </div>
 
-      <!-- Webcam section -->
       <div id="webcam-section" class="card section-card" style="display:none;">
         <div class="webcam-wrapper">
           <img id="liveFeed" class="live-feed" alt="Live webcam feed">
@@ -98,12 +92,9 @@
         <button class="stop-btn" onclick="stopWebcam()">Stop Camera</button>
       </div>
 
-    </div><!-- /left-panel -->
-
-    <!-- RIGHT: result panel — data-panel controls which card is visible -->
+    </div>
     <div class="right-panel" id="rightPanel" data-panel="upload">
 
-      <!-- PANEL: upload result (shown when data-panel="upload") -->
       <div id="resultCard" class="result-card state-empty panel-upload">
         <div class="result-placeholder" id="resultPlaceholder">
           <div class="placeholder-icon">
@@ -117,16 +108,14 @@
         </div>
 
         <div class="result-content" id="resultContent" style="display:none;">
-          <!-- status badge -->
+         
           <div class="result-badge" id="resultBadge">
             <span class="badge-dot" id="resultDot"></span>
             <span class="badge-text" id="resultBadgeText"></span>
           </div>
 
-          <!-- disease name -->
           <h2 class="result-disease" id="disease"></h2>
 
-          <!-- confidence bar -->
           <div class="conf-section">
             <div class="conf-label-row">
               <span class="conf-label">Confidence</span>
@@ -140,7 +129,6 @@
         </div>
       </div>
 
-      <!-- PANEL: webcam waiting placeholder (shown when data-panel="webcam-wait") -->
       <div id="webcamPlaceholder" class="result-card state-empty panel-webcam-wait">
         <div class="result-placeholder">
           <div class="placeholder-icon">
@@ -155,7 +143,6 @@
         </div>
       </div>
 
-      <!-- PANEL: live webcam best result (shown when data-panel="webcam-result") -->
       <div id="liveResultPanel" class="result-card live-result-card panel-webcam-result">
         <div class="live-result-header">
           <span class="live-result-dot" id="liveResultDot"></span>
@@ -188,9 +175,9 @@
         </div>
       </div>
 
-    </div><!-- /right-panel -->
+    </div>
 
-  </div><!-- /main-layout -->
+  </div>
 
   <footer class="site-footer">
     PlantVillage Dataset · 38 disease classes · MobileNetV2 · YOLOv8
