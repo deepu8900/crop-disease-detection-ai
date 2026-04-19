@@ -2,10 +2,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const API_PREDICT = "/predict";
 
+  // ── State ─────────────────────────────────────────────
   let webcamActive  = false;
   let pollInterval  = null;
   let lastBestScore = 0;
 
+  // Classes that are healthy — shown in GREEN
   const HEALTHY_KEYWORDS = ["healthy"];
 
   function isHealthy(label) {
@@ -13,58 +15,75 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function cleanLabel(raw) {
-    
-    let prefix = "";
+    // Returns {plant, disease} object
+    // Input examples:
+    //   "Tomato___Early_blight"        → "Tomato — Early Blight"
+    //   "Tomato___healthy"             → "Tomato — Healthy"
+    //   "Apple___Apple_scab"           → "Apple — Scab"  (no repeat)
+    //   "Cherry_(including_sour)___Powdery_mildew" → "Cherry — Powdery Mildew"
+    //   "Corn_(maize)___Common_rust_"  → "Corn — Common Rust"
+    //   "Uncertain (Tomato___healthy)" → "Uncertain — Tomato Healthy"
+
+    // handle Uncertain prefix
+    let uncertain = false;
     if (raw.startsWith("Uncertain (") && raw.endsWith(")")) {
-      prefix = "Uncertain — ";
+      uncertain = true;
       raw = raw.slice(11, -1);
     }
 
+    // split on triple underscore
     let parts = raw.split("___");
     if (parts.length < 2) {
-     
-      return prefix + raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+      // no triple underscore — just clean underscores
+      const cleaned = raw.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+      return { plant: cleaned, disease: uncertain ? "Uncertain" : "" };
     }
 
+    // crop name: strip parenthetical e.g. "Corn_(maize)" → "Corn"
     let crop = parts[0].replace(/\s*\(.*?\)/g, "").replace(/_/g, " ").trim();
 
+    // disease name: clean underscores and trailing underscores
     let disease = parts[1].replace(/_+$/g, "").replace(/_/g, " ").trim();
 
+    // remove duplicate: if disease starts with crop name, strip it
+    // e.g. "Apple scab" from "Apple___Apple_scab" → just "Scab"
     let cropLower    = crop.toLowerCase();
     let diseaseLower = disease.toLowerCase();
     if (diseaseLower.startsWith(cropLower)) {
       disease = disease.slice(crop.length).trim();
     }
 
+    // title case the disease part
     disease = disease.replace(/\w/g, c => c.toUpperCase());
 
     if (!disease || disease.toLowerCase() === "healthy") {
-      return prefix + crop + " — Healthy";
+      return { plant: crop, disease: "Healthy" };
     }
 
-    return prefix + crop + " — " + disease;
+    return { plant: crop, disease: disease };
   }
 
-  function setPanel(name) {
-    document.getElementById("rightPanel").dataset.panel = name;
-  }
-
+  // ── Mode switchers ─────────────────────────────────────
   function showUpload() {
     if (webcamActive) stopWebcam();
-    document.getElementById("upload-section").style.display = "block";
-    document.getElementById("webcam-section").style.display = "none";
+    document.getElementById("upload-section").style.display  = "block";
+    document.getElementById("webcam-section").style.display  = "none";
+    document.getElementById("liveResultPanel").style.display  = "none";
+    document.getElementById("webcamPlaceholder").style.display = "none";
+    document.getElementById("resultCard").style.display         = "block";
     document.getElementById("btn-upload").classList.add("active");
     document.getElementById("btn-webcam").classList.remove("active");
-    resetUploadResult();
-    setPanel("upload");
   }
 
   function showWebcam() {
-    document.getElementById("upload-section").style.display = "none";
-    document.getElementById("webcam-section").style.display = "block";
+    document.getElementById("upload-section").style.display  = "none";
+    document.getElementById("webcam-section").style.display  = "block";
     document.getElementById("btn-upload").classList.remove("active");
     document.getElementById("btn-webcam").classList.add("active");
-    setPanel("webcam-wait");
+
+    // hide upload result card, show webcam waiting placeholder
+    document.getElementById("resultCard").style.display      = "none";
+    document.getElementById("webcamPlaceholder").style.display = "block";
 
     const feed = document.getElementById("liveFeed");
     feed.src = "/video_feed";
@@ -72,7 +91,7 @@ document.addEventListener("DOMContentLoaded", function () {
     lastBestScore = 0;
 
     fetch("/reset_result", { method: "POST" });
-    if (pollInterval) clearInterval(pollInterval);
+    document.getElementById("liveResultPanel").style.display = "none";
     pollInterval = setInterval(pollLatestResult, 1500);
   }
 
@@ -84,28 +103,18 @@ document.addEventListener("DOMContentLoaded", function () {
     webcamActive  = false;
     lastBestScore = 0;
     fetch("/reset_result", { method: "POST" });
-
-    document.getElementById("upload-section").style.display = "block";
-    document.getElementById("webcam-section").style.display = "none";
-    document.getElementById("btn-upload").classList.add("active");
-    document.getElementById("btn-webcam").classList.remove("active");
-    setPanel("upload");
+    showUpload();
   }
 
-  function resetUploadResult() {
-    document.getElementById("resultPlaceholder").style.display = "flex";
-    document.getElementById("resultContent").style.display     = "none";
-    const card = document.getElementById("resultCard");
-    card.className = "result-card state-empty panel-upload";
-  }
-
+  // ── Placeholder ───────────────────────────────────────
   function showPlaceholder() {
     document.getElementById("resultPlaceholder").style.display = "flex";
     document.getElementById("resultContent").style.display     = "none";
     const card = document.getElementById("resultCard");
-    card.className = "result-card state-empty panel-upload";
+    card.className = "result-card result-empty";
   }
 
+  // ── Drag and drop ──────────────────────────────────────
   window.handleDragOver = function (e) {
     e.preventDefault();
     document.getElementById("dropZone").classList.add("drag-over");
@@ -145,6 +154,7 @@ document.addEventListener("DOMContentLoaded", function () {
     showPlaceholder();
   };
 
+  // ── Predict ────────────────────────────────────────────
   async function predictImage() {
     const fileInput = document.getElementById("fileInput");
     const file      = fileInput.files[0];
@@ -187,7 +197,9 @@ document.addEventListener("DOMContentLoaded", function () {
     placeholder.style.display = "none";
     content.style.display     = "block";
 
-    label.textContent = cleanLabel(disease);
+    const parsed = cleanLabel(disease);
+    document.getElementById("plantName").textContent = parsed.plant || "";
+    label.textContent = parsed.disease || disease;
     value.textContent = confidencePct.toFixed(1) + "%";
     status.textContent = getConfidenceLabel(confidencePct);
 
@@ -199,22 +211,22 @@ document.addEventListener("DOMContentLoaded", function () {
     const healthy = success && isHealthy(disease);
 
     if (!success || confidencePct === 0) {
-      
-      card.className     = "result-card state-noleaf panel-upload";
+      // no leaf
+      card.className     = "result-card result-noleaf";
       badge.classList.add("badge-warn");
       dot.classList.add("dot-warn");
       badgeText.textContent = "No Leaf Detected";
       fill.classList.add("fill-low");
     } else if (healthy) {
-   
-      card.className     = "result-card state-healthy panel-upload";
+      // healthy
+      card.className     = "result-card result-healthy";
       badge.classList.add("badge-healthy");
       dot.classList.add("dot-healthy");
       badgeText.textContent = "Healthy Plant ✓";
       fill.classList.add("fill-healthy");
     } else {
-      
-      card.className     = "result-card state-disease panel-upload";
+      // disease
+      card.className     = "result-card result-disease";
       badge.classList.add("badge-disease");
       dot.classList.add("dot-disease");
       badgeText.textContent = "Disease Detected";
@@ -226,6 +238,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }));
   }
 
+  // ── Live webcam polling ────────────────────────────────
   async function pollLatestResult() {
     if (!webcamActive) return;
     try {
@@ -259,8 +272,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const badgeDot  = document.getElementById("liveBadgeDot");
     const badgeText = document.getElementById("liveBadgeText");
 
-    const disease = cleanLabel(data.disease);
-    label.textContent = disease;
+    const parsed2  = cleanLabel(data.disease);
+    const disease  = parsed2.disease || data.disease;
+    document.getElementById("livePlantName").textContent = parsed2.plant || "";
+    label.textContent = disease;  // disease span
     value.textContent = data.confidence.toFixed(1) + "%";
     text.textContent  = getConfidenceLabel(data.confidence);
 
@@ -278,17 +293,18 @@ document.addEventListener("DOMContentLoaded", function () {
       badge.classList.add("badge-healthy");
       badgeDot.classList.add("dot-healthy");
       badgeText.textContent = "Healthy Plant ✓";
-      panel.className = "result-card live-result-card live-state-healthy panel-webcam-result";
+      panel.className = "result-card live-result-card live-state-healthy";
     } else {
       fill.classList.add("fill-disease");
       dot.classList.add("dot-disease");
       badge.classList.add("badge-disease");
       badgeDot.classList.add("dot-disease");
       badgeText.textContent = "Disease Detected";
-      panel.className = "result-card live-result-card live-state-disease panel-webcam-result";
+      panel.className = "result-card live-result-card live-state-disease";
     }
 
-    setPanel("webcam-result");
+    document.getElementById("webcamPlaceholder").style.display = "none";
+    panel.style.display = "block";
     requestAnimationFrame(() => requestAnimationFrame(() => {
       fill.style.width = Math.min(data.confidence, 100) + "%";
     }));
@@ -297,8 +313,8 @@ document.addEventListener("DOMContentLoaded", function () {
   window.resetLiveResult = function () {
     lastBestScore = 0;
     fetch("/reset_result", { method: "POST" });
-    document.getElementById("liveResultPanel").className = "result-card live-result-card panel-webcam-result";
-    setPanel("webcam-wait");
+    document.getElementById("liveResultPanel").style.display  = "none";
+    document.getElementById("webcamPlaceholder").style.display = "block";
     document.getElementById("snapshotImg").src = "";
   };
 
@@ -330,6 +346,7 @@ document.addEventListener("DOMContentLoaded", function () {
     setTimeout(() => toast.classList.remove("toast-show"), 3500);
   }
 
+  // Expose globals
   window.showUpload   = showUpload;
   window.showWebcam   = showWebcam;
   window.stopWebcam   = stopWebcam;

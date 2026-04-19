@@ -15,6 +15,7 @@
   <div class="bg-blob blob-2"></div>
   <div class="bg-blob blob-3"></div>
 
+  <!-- ── Header ─────────────────────────────── -->
   <header class="site-header">
     <div class="header-icon">
       <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -28,10 +29,13 @@
     </div>
   </header>
 
+  <!-- ── Main two-column layout ─────────────── -->
   <div class="main-layout">
 
+    <!-- LEFT: input panel -->
     <div class="left-panel">
 
+      <!-- Mode selector -->
       <div class="mode-selector">
         <button class="mode-btn active" id="btn-upload" onclick="showUpload()">
           <span class="mode-icon">
@@ -57,6 +61,7 @@
         </button>
       </div>
 
+      <!-- Upload section -->
       <div id="upload-section" class="card section-card">
         <div class="drop-zone" id="dropZone"
              ondragover="handleDragOver(event)"
@@ -83,6 +88,7 @@
         </button>
       </div>
 
+      <!-- Webcam section -->
       <div id="webcam-section" class="card section-card" style="display:none;">
         <div class="webcam-wrapper">
           <img id="liveFeed" class="live-feed" alt="Live webcam feed">
@@ -92,10 +98,13 @@
         <button class="stop-btn" onclick="stopWebcam()">Stop Camera</button>
       </div>
 
-    </div>
-    <div class="right-panel" id="rightPanel" data-panel="upload">
+    </div><!-- /left-panel -->
 
-      <div id="resultCard" class="result-card state-empty panel-upload">
+    <!-- RIGHT: result panel -->
+    <div class="right-panel">
+
+      <!-- Upload result -->
+      <div id="resultCard" class="result-card state-empty" >
         <div class="result-placeholder" id="resultPlaceholder">
           <div class="placeholder-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -108,14 +117,19 @@
         </div>
 
         <div class="result-content" id="resultContent" style="display:none;">
-         
+          <!-- status badge -->
           <div class="result-badge" id="resultBadge">
             <span class="badge-dot" id="resultDot"></span>
             <span class="badge-text" id="resultBadgeText"></span>
           </div>
 
-          <h2 class="result-disease" id="disease"></h2>
+          <!-- plant + disease name -->
+          <div class="result-name-block">
+            <p class="result-plant-label">Leaf — <span id="plantName"></span></p>
+            <p class="result-disease-label">Disease — <span id="disease"></span></p>
+          </div>
 
+          <!-- confidence bar -->
           <div class="conf-section">
             <div class="conf-label-row">
               <span class="conf-label">Confidence</span>
@@ -129,7 +143,8 @@
         </div>
       </div>
 
-      <div id="webcamPlaceholder" class="result-card state-empty panel-webcam-wait">
+      <!-- Webcam waiting placeholder -->
+      <div id="webcamPlaceholder" class="result-card state-empty" style="display:none;">
         <div class="result-placeholder">
           <div class="placeholder-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -143,7 +158,8 @@
         </div>
       </div>
 
-      <div id="liveResultPanel" class="result-card live-result-card panel-webcam-result">
+      <!-- Live webcam best result -->
+      <div id="liveResultPanel" class="result-card live-result-card" style="display:none;">
         <div class="live-result-header">
           <span class="live-result-dot" id="liveResultDot"></span>
           <span class="live-result-label">Best Detection</span>
@@ -159,7 +175,10 @@
               <span class="badge-dot" id="liveBadgeDot"></span>
               <span class="badge-text" id="liveBadgeText"></span>
             </div>
-            <h3 class="live-disease" id="liveDisease"></h3>
+            <div class="result-name-block">
+              <p class="result-plant-label">Leaf — <span id="livePlantName"></span></p>
+              <p class="result-disease-label">Disease — <span class="live-disease" id="liveDisease"></span></p>
+            </div>
             <div class="conf-section">
               <div class="conf-label-row">
                 <span class="conf-label">Confidence</span>
@@ -175,9 +194,9 @@
         </div>
       </div>
 
-    </div>
+    </div><!-- /right-panel -->
 
-  </div>
+  </div><!-- /main-layout -->
 
   <footer class="site-footer">
     PlantVillage Dataset · 38 disease classes · MobileNetV2 · YOLOv8
