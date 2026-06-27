@@ -42,6 +42,7 @@ crop-disease-detection-ai/
 │   └── main.py
 │
 ├── cv_app/
+│   ├── class_names.txt
 │   ├── get_classes_names.py
 │   └── live_detection.py
 │
@@ -54,6 +55,7 @@ crop-disease-detection-ai/
     ├── crop_disease_mobilenet.h5
     ├── leaf_detector.weights.h5
     └── leaf_detector_weights.npy
+```
 ```
 
 > **Note:** The model files are **not included** in this repository because of their large size. Download them separately using the Google Drive links.
