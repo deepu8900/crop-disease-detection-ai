@@ -56,7 +56,7 @@ crop-disease-detection-ai/
     ├── leaf_detector.weights.h5
     └── leaf_detector_weights.npy
 ```
-```
+
 
 > **Note:** The model files are **not included** in this repository because of their large size. Download them separately using the Google Drive links.
 
