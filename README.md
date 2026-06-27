@@ -112,13 +112,17 @@ pip install fastapi uvicorn tensorflow keras numpy opencv-python pillow python-m
 
 ## Step 4: Download the AI Models
 
-Download the following model files from the provided Google Drive links:
+The trained model files are **not included** in this repository because they exceed GitHub's file size limits.
 
-- `crop_disease_mobilenet.h5`
-- `leaf_detector.weights.h5`
-- `leaf_detector_weights.npy`
+Download the following files from Google Drive and place them inside the `models` folder.
 
-Create a folder named `models` (if it does not already exist) in the project root and place all three files inside it.
+| Model File | Download Link |
+|------------|---------------|
+| `crop_disease_mobilenet.h5` | https://drive.google.com/file/d/1kE0CHegc_DnpKIUq7eMASo-B_Hjo3jK0/view?usp=drive_link |
+| `leaf_detector.weights.h5` | https://drive.google.com/file/d/1siwgizbkDo6zAEcukb0K2JxM07-HkZF0/view?usp=drive_link |
+| `leaf_detector_weights.npy` | https://drive.google.com/file/d/1wL08qITkUJI_ZaPEQt-28xq029JtFj9p/view?usp=drive_link |
+
+After downloading, create a folder named `models` (if it does not already exist) in the project root and place the files as shown below.
 
 ```text
 models/
@@ -126,7 +130,6 @@ models/
 ├── leaf_detector.weights.h5
 └── leaf_detector_weights.npy
 ```
-
 ---
 
 ## Step 5: Run the Application
